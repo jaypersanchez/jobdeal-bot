@@ -2,7 +2,14 @@ import logging
 import os
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler,
+)
 import requests
 import PyPDF2
 
@@ -18,24 +25,29 @@ logging.basicConfig(
 # Define states for the conversation
 NAME, DESCRIPTION = range(2)
 
-# Start the conversation to create a new repository
-async def start_create_repo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Please provide the name of the new repository:")
-    return NAME
+# Detect natural language intent for creating a repository
+async def detect_intent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    message_text = update.message.text.lower()
+    if "create a new project" in message_text or "new repo" in message_text:
+        await update.message.reply_text("Please provide the name of the new repository:")
+        return NAME
+    else:
+        await update.message.reply_text("I didn't understand. Please try again or use clear commands.")
+        return ConversationHandler.END
 
 # Get the repository name
 async def get_repo_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['repo_name'] = update.message.text  # Store the repo name
+    context.user_data["repo_name"] = update.message.text  # Store the repo name
     await update.message.reply_text("Now, please provide a description for the repository:")
     return DESCRIPTION
 
 # Get the repository description and create the repo
 async def get_repo_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['repo_description'] = update.message.text  # Store the repo description
+    context.user_data["repo_description"] = update.message.text  # Store the repo description
 
     # Prepare the data to send to the server
-    repo_name = context.user_data['repo_name']
-    repo_description = context.user_data['repo_description']
+    repo_name = context.user_data["repo_name"]
+    repo_description = context.user_data["repo_description"]
 
     # Call the create repo endpoint
     response = requests.post(
@@ -113,12 +125,12 @@ def main():
 
     # Define the conversation handler
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('create_new_repo', start_create_repo)],
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, detect_intent)],
         states={
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_repo_name)],
             DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_repo_description)],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     # Register the conversation handler
